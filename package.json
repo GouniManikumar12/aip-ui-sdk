@@ -1,0 +1,33 @@
+{
+  "name": "aip-ui-sdk",
+  "version": "1.0.0",
+  "description": "Operator-agnostic UI SDK for embedding AIP compliant creatives, tracking CPX/CPC/CPA flows, and driving Weave recommendations.",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "scripts": {
+    "clean": "rimraf dist",
+    "build": "npm run clean --if-present && tsc -p tsconfig.json",
+    "lint": "tsc --noEmit"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "keywords": ["aip", "ads", "sdk", "react", "tracking"],
+  "license": "MIT",
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.0",
+    "rimraf": "^5.0.5",
+    "typescript": "^5.5.2"
+  }
+}

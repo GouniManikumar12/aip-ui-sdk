@@ -1,0 +1,112 @@
+:where(.aip-theme-root) {
+  --aip-primary: #2563eb;
+  --aip-text: #0f172a;
+  --aip-bg: #ffffff;
+  --aip-border: #e2e8f0;
+  --aip-border-radius: 12px;
+  --aip-radius: 12px;
+  color: var(--aip-text);
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.aip-weave-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: var(--aip-bg);
+}
+
+.aip-recommendations {
+  border: 1px solid var(--aip-border);
+  border-radius: var(--aip-border-radius);
+  padding: 1rem;
+  background: color-mix(in srgb, var(--aip-bg) 90%, white);
+}
+
+.aip-recommendations__status {
+  font-size: 0.85rem;
+  color: #475569;
+  margin: 0;
+}
+
+.aip-recommendations__list {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.aip-recommendations__citation {
+  list-style: decimal;
+}
+
+.aip-recommendations__link {
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+  color: inherit;
+}
+
+.aip-recommendations__title {
+  font-weight: 600;
+}
+
+.aip-recommendations__description {
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.aip-recommendations__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+.aip-recommendations__card {
+  border: 1px solid var(--aip-border);
+  border-radius: var(--aip-radius);
+  overflow: hidden;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+}
+
+.aip-recommendations__media img {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+}
+
+.aip-recommendations__body {
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.aip-recommendations__body h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.aip-recommendations__body p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.aip-recommendations__cta {
+  margin-top: auto;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  border-radius: 999px;
+  background: var(--aip-primary);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+  font-size: 0.85rem;
+}
