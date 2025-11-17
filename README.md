@@ -1,168 +1,137 @@
 # aip-ui-sdk
 
-Operator-agnostic React SDK that knows how to talk to the AIP specification, handle platform → context → bid → auction → event flows, and render creatives inside conversational experiences.
+## Project Overview
+`aip-ui-sdk` is an operator-agnostic UI SDK for embedding AIP-compliant creatives, tracking CPX → CPC → CPA flows, and powering Weave-styled recommendation surfaces. It hides the platform_request → context_request → bid → auction_result flow, renders creatives with reservation-based billing, and emits the AIP event payloads your operator expects.
 
 ## Installation
-
 ```bash
 npm install aip-ui-sdk
+# or
+yarn add aip-ui-sdk
 # or
 pnpm add aip-ui-sdk
 ```
 
-The package ships TypeScript definitions, a React provider, Weave-ready container components, exposure tracking hooks, and event dispatch helpers.
+The package ships as an ES module with bundled TypeScript declarations and expects React 18 peer dependencies.
 
-## Bootstrapping the provider
-
+## Quick Start
 ```tsx
-import { AIPProvider } from 'aip-ui-sdk';
+import { AIPProvider, AIPWeaveContainer } from 'aip-ui-sdk';
 
-export function App({ children }: { children: React.ReactNode }) {
+export function Root() {
   return (
     <AIPProvider
       operatorUrl={process.env.AIP_OPERATOR_URL!}
       operatorApiKey={process.env.AIP_OPERATOR_KEY!}
       platformId="weave-demo"
       sessionId="session-123"
-      theme={{ '--aip-primary': '#14b8a6' }}
     >
-      {children}
+      <AIPWeaveContainer messageId="msg-1" query="best Tablets" fallbackFormat="product">
+        <p>LLM response with inline links…</p>
+      </AIPWeaveContainer>
     </AIPProvider>
   );
 }
 ```
+The provider issues the initial `POST /v1/platform/request`, caches the returned `auction_result`, and the container wires visibility/click tracking automatically.
 
-`AIPProvider` automatically issues a `platform_request` (`POST /v1/platform/request`) with the session/platform identifiers, caches the returned `auction_result`, and exposes helper functions for emitting CPX → CPC → CPA events. The provider maintains the most recent `serve_token`, `brand_agent_id`, wallet, and reserved CPC/CPA amount so every component uses the exact payload mandated by AIP.
-
-## Talking to the AIP server
-
-Use the exported `useAIP` hook (re-exported from the provider) or the `useTracking` helper to reach the Operator endpoints:
-
-```tsx
-import { useEffect } from 'react';
-import { useAIP, useTracking } from 'aip-ui-sdk';
-
-const AskForNewAuction = () => {
-  const { sendPlatformRequest } = useAIP();
-  const { sendCPX, sendCPC, sendCPA } = useTracking();
-
-  useEffect(() => {
-    void sendPlatformRequest({ query_text: 'best hiking backpacks', locale: 'en-US', geo: 'US' });
-  }, [sendPlatformRequest]);
-
-  const handleManualConversion = () => {
-    void sendCPA({
-      conversion_id: crypto.randomUUID(),
-      conversion_type: 'purchase',
-      ts: new Date().toISOString(),
-      order_value_cents: 12900,
-      currency: 'USD'
-    });
-  };
-
-  return (
-    <button onClick={() => void sendCPC()}>
-      Fire CPC manually
-      <button onClick={handleManualConversion}>Confirm CPA</button>
-    </button>
-  );
-};
-```
-
-Every event call automatically injects the serve token, operator identifiers, reserved billing metadata, and enforces the progressive CPX → CPC → CPA ladder so you cannot accidentally bill out of order.
-
-## Weave integration
-
-`AIPWeaveContainer` wraps the assistant response block, detects rendered creatives, and manages fallback recommendations if the response lacks AIP links.
+## Usage Guide
+### AIPProvider wrapper
+Wrap your React tree with the provider so hooks and components share operator credentials, serve tokens, and auction metadata.
 
 ```tsx
-import { AIPWeaveContainer, dispatchStreamingComplete, dispatchStreamingStart } from 'aip-ui-sdk';
+import { AIPProvider } from 'aip-ui-sdk';
 
-export const AssistantTurn = ({ messageId, query, response }: Props) => (
-  <AIPWeaveContainer messageId={messageId} query={query} fallbackFormat="citation">
-    <div>{response}</div>
-  </AIPWeaveContainer>
-);
-
-// Stream handlers inside your LLM runtime:
-function onStreamingStart(messageId: string, sessionId: string) {
-  dispatchStreamingStart(messageId, sessionId);
-}
-
-function onStreamingComplete(messageId: string, sessionId: string) {
-  dispatchStreamingComplete(messageId, sessionId);
-}
+<AIPProvider
+  operatorUrl="https://operator.example.com"
+  operatorApiKey="sk-..."
+  platformId="pf-weave"
+  sessionId={session.id}
+  theme={{ '--aip-primary': '#f97316' }}
+>
+  {children}
+</AIPProvider>;
 ```
 
-The container:
+| Prop | Type | Required | Description |
+| --- | --- | --- | --- |
+| `operatorUrl` | `string` | ✅ | Base Operator URL used for all `/v1/...` requests. |
+| `operatorApiKey` | `string` | ✅ | Auth key sent as `x-api-key`. |
+| `platformId` | `string` | ✅ | Platform identifier passed to platform/event endpoints. |
+| `sessionId` | `string` | ✅ | Required session identifier for attribution. |
+| `theme` | `Record<string, string \| number>` | optional | Overrides CSS variables (`--aip-primary`, `--aip-text`, `--aip-bg`, `--aip-border-radius`, `--aip-radius`). |
 
-- Watches the DOM for links that match the `render.url` returned in the `auction_result`.
-- Auto-fires a CPX exposure once the creative is visible (uses `IntersectionObserver`).
-- Intercepts clicks, emits `POST /v1/event/cpc`, and honors reservation-based billing.
-- Falls back to operator recommendations when the assistant response doesn’t reference the auctioned creative.
+Provider exports the `useAIP` hook plus helpers: `sendPlatformRequest`, `sendEventCPX`, `sendEventCPC`, `sendEventCPA`, and cached `auctionResult` + `serveToken` + reservation metadata.
 
-## Recommendation surfaces
+### AIPWeaveContainer (Weave ad format)
+Wrap each assistant response or streaming block. The container inspects rendered DOM for the auction’s `render.url`, fires CPX exposure when visible, intercepts clicks for CPC, listens to `dispatchStreamingStart/Complete`, and renders fallback recommendations when no creative is found.
 
-`AIPRecommendations` fetches citations or product cards through `POST /v1/platform/recommendations` and automatically emits CPX/CPC events when visible/clicked.
+```tsx
+import { AIPWeaveContainer } from 'aip-ui-sdk';
+
+<AIPWeaveContainer
+  messageId={message.id}
+  query={message.query}
+  fallbackFormat="citation"
+>
+  <AssistantMarkdown source={message.content} />
+</AIPWeaveContainer>;
+```
+
+| Prop | Type | Required | Description |
+| --- | --- | --- | --- |
+| `messageId` | `string` | ✅ | Unique identifier for the assistant turn (also sent to recommendations). |
+| `query` | `string` | ✅ | Query text passed to fallback recommendations. |
+| `fallbackFormat` | `'citation' \| 'product'` | ✅ | Determines fallback layout when no creative link is found. |
+| `children` | `ReactNode` | ✅ | Rendered assistant response/Weave markup. |
+
+Pair with `dispatchStreamingStart(messageId, sessionId)` / `dispatchStreamingComplete(...)` while streaming to ensure link detection triggers at the right time.
+
+### AIPRecommendations component
+Renders citations or product cards by calling `POST /v1/platform/recommendations`. It auto-fires CPX when visible, CPC on click, and can be used standalone or as the fallback UI.
 
 ```tsx
 import { AIPRecommendations } from 'aip-ui-sdk';
 
-export const RelatedProducts = ({ messageId, query }: Props) => (
-  <AIPRecommendations messageId={messageId} query={query} format="product" />
-);
+<AIPRecommendations messageId="msg-1" query="new york hotels" format="citation" />;
 ```
 
-When used inside `AIPWeaveContainer`, the component becomes the fallback UI. You can also render it directly anywhere in your experience to boost recall even when Weave already linked to the creative.
+| Prop | Type | Required | Description |
+| --- | --- | --- | --- |
+| `messageId` | `string` | ✅ | Message/turn identifier sent with the recommendation request. |
+| `query` | `string` | ✅ | Query string forwarded to the operator. |
+| `format` | `'citation' \| 'product'` | ✅ | Layout preference for rendering results. |
 
-## Event tracking & billing logic
+## API Reference
+Main exports:
 
-- **serve_token attribution** – Every event payload is scoped to the cached `serve_token` from the last auction result. Consumers never touch the token directly.
-- **Progressive CPX → CPC → CPA** – The provider keeps billing state in memory. CPC cannot fire before CPX, and CPA cannot fire before CPC.
-- **Reservation-based billing** – The winner’s `reserved_amount` is recorded when the creative is served, making full CPC/CPA funds available for later settlement.
-- **Pricing** – All pricing events use `winner.cpx_price * 100` to convert to cents, matching the spec.
+| Export | Type | Description |
+| --- | --- | --- |
+| `AIPProvider`, `useAIP` | Component/Hook | Provider context + hook for accessing operator config, auctions, and senders. |
+| `AIPWeaveContainer` | Component | Wraps assistant output, handles streaming coordination, fallback logic, CPX/CPC events. |
+| `AIPRecommendations` | Component | Recommendation surface with automatic tracking. |
+| `useTracking` | Hook | Returns `sendCPX`, `sendCPC`, `sendCPA`, `serveToken`, and reservation data. |
+| `useExposureObserver` | Hook | Intersection Observer helper that fires once when an element is visible. |
+| `dispatchStreamingStart/dispatchStreamingComplete` | Utility | Custom events to coordinate LLM streaming with link scanning. |
+| Types (`AIPAuctionResult`, `AIPCreative`, `AIPExposureEvent`, `AIPClickEvent`, `AIPConversionEvent`, `AIPWeaveLink`, `AIPProviderContext`, `OperatorConfig`) | Interfaces | TypeScript definitions for all major payloads. |
 
-## Fallback behavior
+## Tracking & Events
+- **Exposure tracking (CPX)** – `useExposureObserver` is wired into `AIPWeaveContainer` and `AIPRecommendations` to emit `POST /v1/event/cpx` once per creative/fallback block. Pricing is derived from `auction_result.winner.cpx_price * 100` and respects reserved amounts.
+- **Click tracking (CPC)** – Click interception ensures `POST /v1/event/cpc` fires before navigation. The billing ladder enforces CPX first, CPC second.
+- **Conversion tracking (CPA)** – Call `sendEventCPA`/`sendCPA` with conversion metadata; the SDK automatically sequences CPX → CPC → CPA and reuses the cached `serve_token`, `brand_agent_id`, and reservation data.
+- **Fallback reservations** – The provider stores `winner.reserved_amount` in cents, so downstream analytics can reconcile reservation-based billing.
 
-When Weave responses omit AIP links, the SDK:
+## TypeScript Support
+Full `.d.ts` declarations are generated from the TypeScript source and published with the package. Components, hooks, and event payloads ship with strict interfaces so IDEs autocomplete payloads and props by default.
 
-1. Calls `POST /v1/platform/recommendations` using the message/query metadata.
-2. Renders either citations or product cards using isolated `aip-` styles.
-3. Fires CPX as soon as the fallback block intersects the viewport and CPC when a link is clicked.
-
-This keeps the conversation monetizable even if the LLM response never referenced the auctioned creative.
-
-## Custom theme tokens
-
-Override any of the AIP-specific CSS variables (`--aip-primary`, `--aip-text`, `--aip-bg`, `--aip-border-radius`, `--aip-radius`) by passing a theme object into the provider:
-
-```tsx
-<AIPProvider
-  operatorUrl={...}
-  operatorApiKey={...}
-  platformId="pf-demo"
-  sessionId="sess-1"
-  theme={{
-    '--aip-primary': '#f97316',
-    '--aip-bg': '#0f172a',
-    '--aip-text': '#f8fafc',
-    '--aip-border-radius': '16px'
-  }}
->
-  {...}
-</AIPProvider>
+## Development
+Clone the repo, install dependencies, then run:
+```bash
+npm install
+npm run lint   # type-checks via tsc --noEmit
+npm run build  # emits dist/ with ESM + declarations
 ```
+Use `npm run clean` to remove the `dist` folder before publishing.
 
-The provider scopes these variables to a `.aip-theme-root` wrapper so they never leak into the host application namespace.
-
-## API surface
-
-Exports include:
-
-- `AIPProvider`, `useAIP`
-- `AIPWeaveContainer`, `AIPRecommendations`
-- `useTracking`, `useExposureObserver`
-- `dispatchStreamingStart`, `dispatchStreamingComplete`
-- Type definitions for auctions, creatives, events, and provider context
-
-Bundle it, publish to npm, and the SDK is ready for production use.
+## License
+Licensed under the [Apache License 2.0](LICENSE) © 2024 AdMesh.
